@@ -1,47 +1,113 @@
-# Svelte + TS + Vite
+# Restaurant Frontend (Svelte + TypeScript + Vite)
 
-This template should help get you started developing with Svelte and TypeScript in Vite.
+Minimal UI for placing table orders and receiving `FOOD_READY` events over **MQTT (WebSockets)**.
+Pairs with the Python asyncio backend and an MQTT broker. No REST.
 
-## Recommended IDE Setup
+## Prereqs
 
-[VS Code](https://code.visualstudio.com/) + [Svelte](https://marketplace.visualstudio.com/items?itemName=svelte.svelte-vscode).
+* **Node.js LTS ≥ 22.12** (recommended: 22.21.0)
+* **MQTT broker** with a **WebSocket** listener (dev example uses Mosquitto on `ws://localhost:9001`)
 
-## Need an official Svelte framework?
+## Quick start
 
-Check out [SvelteKit](https://github.com/sveltejs/kit#readme), which is also powered by Vite. Deploy anywhere with its serverless-first approach and adapt to various platforms, with out of the box support for TypeScript, SCSS, and Less, and easily-added support for mdsvex, GraphQL, PostCSS, Tailwind CSS, and more.
+```bash
+# from repo root (or cd frontend first)
+cd frontend
+npm install
+npm install mqtt
 
-## Technical considerations
+# start dev server
+npm run dev -- --host
+# open the printed URL (e.g., http://localhost:5173)
+```
 
-**Why use this over SvelteKit?**
+## Configure MQTT
 
-- It brings its own routing solution which might not be preferable for some users.
-- It is first and foremost a framework that just happens to use Vite under the hood, not a Vite app.
-
-This template contains as little as possible to get started with Vite + TypeScript + Svelte, while taking into account the developer experience with regards to HMR and intellisense. It demonstrates capabilities on par with the other `create-vite` templates and is a good starting point for beginners dipping their toes into a Vite + Svelte project.
-
-Should you later need the extended capabilities and extensibility provided by SvelteKit, the template has been structured similarly to SvelteKit so that it is easy to migrate.
-
-**Why `global.d.ts` instead of `compilerOptions.types` inside `jsconfig.json` or `tsconfig.json`?**
-
-Setting `compilerOptions.types` shuts out all other types not explicitly listed in the configuration. Using triple-slash references keeps the default TypeScript setting of accepting type information from the entire workspace, while also adding `svelte` and `vite/client` type information.
-
-**Why include `.vscode/extensions.json`?**
-
-Other templates indirectly recommend extensions via the README, but this file allows VS Code to prompt the user to install the recommended extension upon opening the project.
-
-**Why enable `allowJs` in the TS template?**
-
-While `allowJs: false` would indeed prevent the use of `.js` files in the project, it does not prevent the use of JavaScript syntax in `.svelte` files. In addition, it would force `checkJs: false`, bringing the worst of both worlds: not being able to guarantee the entire codebase is TypeScript, and also having worse typechecking for the existing JavaScript. In addition, there are valid use cases in which a mixed codebase may be relevant.
-
-**Why is HMR not preserving my local component state?**
-
-HMR state preservation comes with a number of gotchas! It has been disabled by default in both `svelte-hmr` and `@sveltejs/vite-plugin-svelte` due to its often surprising behavior. You can read the details [here](https://github.com/rixo/svelte-hmr#svelte-hmr).
-
-If you have state that's important to retain within a component, consider creating an external store which would not be replaced by HMR.
+`src/mqtt.ts` defines the WebSocket URL:
 
 ```ts
-// store.ts
-// An extremely simple external store
-import { writable } from 'svelte/store'
-export default writable(0)
+// src/mqtt.ts
+const url = `ws://${location.hostname}:9001`; // change if needed (e.g., wss://your-broker.example.com/mqtt)
 ```
+
+Common values:
+
+* Local broker (dev): `ws://localhost:9001`
+* LAN test: `ws://<your-lan-ip>:9001`
+* Public/managed broker: `wss://<host>:443/mqtt` (must be **wss** if your site is **https**)
+
+## Scripts
+
+```bash
+npm run dev       # dev server with HMR
+npm run build     # production build -> dist/
+npm run preview   # locally serve dist/ for a quick check
+```
+
+## Files to know
+
+```
+frontend/
+  src/
+    App.svelte        # UI: 4 tables, ORDER button, Preparing → Ready flow
+    mqtt.ts           # MQTT client (mqtt.js) over WebSockets
+    stores.ts         # Svelte store for per-table state
+    lib/uuid.ts       # small ID helpers
+  index.html
+  vite.config.ts
+```
+
+## Topics & payloads
+
+* **Publish (UI → backend):** `orders/new`
+
+```json
+{
+  "v": 1,
+  "type": "ORDER",
+  "orderId": "uuid",
+  "tableId": 1,
+  "foodName": "Burger",
+  "requestedAt": 1730000000.123
+}
+```
+
+* **Subscribe (backend → UI):** `food/ready`
+
+```json
+{
+  "v": 1,
+  "type": "FOOD_READY",
+  "orderId": "uuid",
+  "tableId": 1,
+  "foodName": "Burger",
+  "readyAt": 1730000005.456,
+  "prepMs": 5000
+}
+```
+
+Notes: **QoS 1** used both ways. UI removes a preparing item by **full `orderId`** match (short ID is for display only).
+
+## Dev broker (example)
+
+Mosquitto config (for local dev):
+
+```
+listener 1883
+protocol mqtt
+listener 9001
+protocol websockets
+allow_anonymous true
+```
+
+Start on Windows:
+
+```powershell
+& "C:\Program Files\mosquitto\mosquitto.exe" -v -c "C:\mosq\mosquitto.conf"
+```
+
+## Troubleshooting
+
+* **Browser can’t connect to MQTT:** broker not running, wrong port, or missing **websockets** listener. If your site is HTTPS, use **wss://**.
+* **Orders never become Ready:** backend not running/subscribed, or frontend points to a different broker host/port.
+* **Port conflicts:** change the WS port in both the broker config and `src/mqtt.ts`.
