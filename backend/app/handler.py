@@ -14,7 +14,7 @@ async def handle_order(client: Client, payload: bytes) -> None:
         return
 
     # Simulate preparation
-    prep_s = random.randint(2, 8)
+    prep_s = random.randint(5, 20)
     logger.info(f"[ORDER] {order.orderId} t{order.tableId} '{order.foodName}' prep={prep_s}s")
     await asyncio.sleep(prep_s)
 
