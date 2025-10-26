@@ -13,6 +13,10 @@ TOPIC_ORDERS_STR = "orders/new"
 TOPIC_ORDERS = Topic(TOPIC_ORDERS_STR)
 
 async def run() -> None:
+    """
+    Connect to MQTT (TCP 1883), subscribe to 'orders/new', and fan out
+    handling to `handle_order` for each message. Reconnects with backoff.
+    """
     backoff = 2
     while True:
         try:
@@ -21,16 +25,13 @@ async def run() -> None:
                 logger.info(f"Connected to MQTT {MQTT_HOST}:{MQTT_PORT}")
 
                 async with client.messages() as messages:
-                    # PASS THE STRING here ⤵️
                     await client.subscribe(TOPIC_ORDERS_STR, qos=1)
                     logger.info(f"Subscribed to {TOPIC_ORDERS_STR}")
 
                     async for msg in messages:
-                        # Log what we see
                         t = str(getattr(msg, "topic", "<unknown>"))
                         logger.info(f"RX on {t}: {msg.payload!r}")
 
-                        # Use Topic.matches() to filter
                         if TOPIC_ORDERS.matches(msg.topic):
                             asyncio.create_task(handle_order(client, msg.payload))
 
