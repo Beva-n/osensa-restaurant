@@ -5,7 +5,15 @@ from .models import Order, FoodReady
 from .logger import logger
 
 async def handle_order(client: Client, payload: bytes) -> None:
-    """Parse ORDER, simulate random prep, publish FOOD_READY."""
+    """
+    Process an ORDER message from 'orders/new'.
+
+    - Validates JSON payload into Order model.
+    - Simulates a random prep delay.
+    - Publishes FOOD_READY to 'food/ready' with same orderId/tableId.
+
+    Drops invalid payloads (logs a warning) without crashing.
+    """
     try:
         data = json.loads(payload.decode("utf-8"))
         order = Order(**data)

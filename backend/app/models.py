@@ -3,6 +3,7 @@ from pydantic import BaseModel, Field, constr
 import time
 
 class Order(BaseModel):
+    """Inbound order from the UI. Validated at the backend boundary."""
     v: int = 1
     type: constr(pattern=r"^ORDER$") = "ORDER"
     orderId: str
