@@ -6,7 +6,7 @@ from app.models import Order, FoodReady
 def test_order_validation_minimal_ok():
     o = Order(orderId="abc", tableId=1, foodName="Burger")
     assert o.type == "ORDER"
-    assert 1 <= o.tableId <= 99
+    assert 1 <= o.tableId <= 4
     assert isinstance(o.requestedAt, float)
 
 def test_order_rejects_empty_food():

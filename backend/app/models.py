@@ -7,7 +7,7 @@ class Order(BaseModel):
     v: int = 1
     type: constr(pattern=r"^ORDER$") = "ORDER"
     orderId: str
-    tableId: int = Field(ge=1, le=99)
+    tableId: int = Field(ge=1, le=4)
     foodName: constr(min_length=1, max_length=80)
     requestedAt: float = Field(default_factory=lambda: time.time())
 
