@@ -1,7 +1,3 @@
-This is very close. I’ve trimmed a few extras, fixed env details, and corrected small inaccuracies (notably: list all backend envs needed for HiveMQ; prefer `.env.production.local` for Vite; avoid claiming a specific coverage %). Here’s a tightened, accurate version for the grader:
-
----
-
 # Brian’s Restaurant — Grader Notes
 
 **Stack**
