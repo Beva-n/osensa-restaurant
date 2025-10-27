@@ -3,7 +3,6 @@ import pytest
 from app.handler import handle_order
 
 @pytest.mark.asyncio
-@pytest.mark.asyncio
 async def test_handle_order_happy_path(dummy_client, fast_sleep, fixed_prep):
     payload = {
         "v": 1, "type": "ORDER",
@@ -30,5 +29,6 @@ async def test_handle_order_drops_bad_payload(dummy_client, fast_sleep):
     await handle_order(dummy_client, json.dumps({"type": "ORDER"}).encode())
 
     assert dummy_client.published == []
+
 
 
