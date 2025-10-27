@@ -12,6 +12,7 @@ __pycache__/
 backend/.coverage
 backend/.env
 backend/.env.hivemq
+backend/app/__pycache__/
 
 # Frontend
 frontend/node_modules/
