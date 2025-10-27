@@ -1,8 +1,8 @@
 # Brian’s Restaurant
 
 **Stack**
-* Frontend: Svelte + TypeScript + Vite (browser → MQTT over **WSS :8884**)
-* Backend: Python (asyncio) with `asyncio-mqtt` (server → MQTT over **TLS :8883**)
+* Frontend: Svelte + TypeScript + Vite 
+* Backend: Python (asyncio) with `asyncio-mqtt` 
 * Broker: HiveMQ Cloud (managed)
 * Hosting (frontend): **Netlify**
 
