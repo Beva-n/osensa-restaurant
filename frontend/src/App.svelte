@@ -8,8 +8,7 @@
 
   function order(tableId: number) {
     const foodName = prompt('Food name?')?.trim();
-    if (!foodName) return;
-
+    if (!foodName || foodName.length > 80 || !/^[\p{L}\p{N} .,'-]+$/u.test(foodName)) return;
     const orderId = newId();
 
     // Optimistic: show in "Preparing"
