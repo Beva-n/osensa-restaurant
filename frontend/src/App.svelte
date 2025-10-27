@@ -50,7 +50,7 @@
   });
 </script>
 
-<h1>Restaurant Tables</h1>
+<h1>Brian's Restaurant</h1>
 
 <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:16px">
   {#each [1,2,3,4] as id}
