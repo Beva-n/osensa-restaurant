@@ -1,108 +1,165 @@
+This is very close. I’ve trimmed a few extras, fixed env details, and corrected small inaccuracies (notably: list all backend envs needed for HiveMQ; prefer `.env.production.local` for Vite; avoid claiming a specific coverage %). Here’s a tightened, accurate version for the grader:
 
+---
 
-# Brian's Restaurant
+# Brian’s Restaurant — Grader Notes
 
-Frontend: **Svelte + TypeScript + Vite**
-Backend: **Python (asyncio)**
-Transport: **MQTT**. The browser publishes `orders/new`; the backend processes and publishes `food/ready`.
+**Stack**
 
-## Quick Start (Windows)
+Frontend: Svelte + TypeScript + Vite (browser → MQTT over **WSS :8884**)
 
-### 0) MQTT Broker (Mosquitto)
+Backend: Python (asyncio) with `asyncio-mqtt` (server → MQTT over **TLS :8883**)
 
-Start one verbose instance and keep it running:
+Broker: HiveMQ Cloud (managed)
 
-```powershell
-& "C:\Program Files\mosquitto\mosquitto.exe" -v -c "C:\mosq\mosquitto.conf"
+**Data flow**
+Frontend publishes `orders/new`; backend processes and publishes `food/ready`. No HTTP API required.
+
+---
+
+## Build & Run (Local)
+
+### Local MQTT Broker 
+
+Use a tiny Mosquitto config in the repo:
+
+```
+dev/mosquitto-dev.conf
 ```
 
-Minimal dev config (`C:\mosq\mosquitto.conf`):
-
-```
+```conf
 listener 1883
 protocol mqtt
 
 listener 9001
 protocol websockets
 
-allow_anonymous true   # dev only
+allow_anonymous true
+persistence false
 ```
 
-### 1) Backend
+**Run Example (Windows):**
+
+```powershell
+& "C:\Program Files\mosquitto\mosquitto.exe" -v -c ".\dev\mosquitto-dev.conf"
+```
+
+**Wire local envs:**
+
+* Backend `.env`
+
+  ```
+  MQTT_HOST=localhost
+  MQTT_PORT=1883
+  MQTT_TLS=false
+  ```
+* Frontend `.env.local`
+
+  ```
+  VITE_MQTT_URL=ws://localhost:9001
+  ```
+
+---
+
+### Backend
 
 ```powershell
 cd backend
 py -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
-
-# run (uses TCP 1883)
-$env:MQTT_HOST="127.0.0.1"
-$env:MQTT_PORT="1883"
 python -m app.main
 ```
 
-Expected logs:
-`Connected to MQTT 127.0.0.1:1883` → `Subscribed to orders/new`
 
-### 2) Frontend
+
+### Frontend
 
 ```powershell
 cd frontend
 npm install
-npm install mqtt
-
-# dev server
 npm run dev -- --host
-# open the printed URL (e.g., http://localhost:5173)
+# open printed URL (e.g., http://localhost:5173)
 ```
 
-The frontend connects to `ws://<host>:9001` by default (see `src/mqtt.ts`).
+*(If not running a local broker, skip the Mosquitto step and use the HiveMQ Cloud envs instead.)*
+
 
 ---
 
-## What to Expect
+## Cloud Demo (HiveMQ Cloud)
 
-* Click **ORDER** on a table → enter a food name
-* UI publishes to **`orders/new`** (QoS 1)
-* Backend simulates prep (random 2–8s) and publishes **`food/ready`** (QoS 1)
-* UI moves item from **Preparing → Ready**
+### Frontend (production env at build time)
+
+Set Vite variables:
+
+```
+VITE_MQTT_URL=wss://<cluster-host>:8884/mqtt
+VITE_MQTT_USERNAME=<user>
+VITE_MQTT_PASSWORD=<pass>
+```
+
+Then:
+
+```powershell
+npm run build
+npm run preview -- --host
+```
+
+### Backend 
+
+`backend/.env.hivemq`:
+
+```
+MQTT_HOST=<cluster-host>
+MQTT_PORT=8883
+MQTT_TLS=true
+MQTT_USERNAME=<user>
+MQTT_PASSWORD=<pass>
+MQTT_SUB_TOPIC=orders/new
+MQTT_PUB_READY=food/ready
+```
+
+Run:
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+$env:ENV_FILE=".env.hivemq"   # app/settings.py loads this
+python -m app.main
+```
+
+TLS uses `ssl.create_default_context()` and configures the underlying paho client via `tls_set_context` (no CA file path needed).
+
+---
+
+## Verify
+
+**Backend logs**
+
+```
+[MQTT] connected -> <cluster-host>:8883
+[MQTT] subscribed to orders/new
+```
+
+**HiveMQ Web Client**
+Connect with WSS `:8884`, path `/mqtt`. Subscribe to `orders/#` and `food/ready`.
+Publishing a valid JSON to `orders/new` should result in a `food/ready` message.
 
 ---
 
 ## Topics & Payloads
 
-**Publish (UI → backend):** `orders/new`
+**UI → backend** `orders/new` (QoS 1)
 
 ```json
-{
-  "v": 1,
-  "type": "ORDER",
-  "orderId": "uuid",
-  "tableId": 1,
-  "foodName": "Burger",
-  "requestedAt": 1730000000.123
-}
+{"v":1,"type":"ORDER","orderId":"uuid","tableId":1,"foodName":"Burger","requestedAt":1730000000.123}
 ```
 
-**Publish (backend → UI):** `food/ready`
+**backend → UI** `food/ready` (QoS 1)
 
 ```json
-{
-  "v": 1,
-  "type": "FOOD_READY",
-  "orderId": "uuid",
-  "tableId": 1,
-  "foodName": "Burger",
-  "readyAt": 1730000005.456,
-  "prepMs": 5000
-}
+{"v":1,"type":"FOOD_READY","orderId":"uuid","tableId":1,"foodName":"Burger","readyAt":1730000005.456,"prepMs":5000}
 ```
-
-Notes:
-
-* **QoS:** 1 both ways (at-least-once).
-* UI removes from “Preparing” by **full `orderId`** match (short ID is display-only).
 
 ---
 
@@ -111,64 +168,57 @@ Notes:
 ```
 frontend/
   src/
-    App.svelte        # 4-table UI, ORDER button, Preparing → Ready
-    mqtt.ts           # connects via mqtt.js (WebSockets)
-    stores.ts         # state per table
-    lib/uuid.ts       # id helpers
+    App.svelte        # 4-table UI: Order → Preparing → Ready
+    mqtt.ts           # mqtt.js client (reads VITE_MQTT_*; WSS for prod)
+    table.ts          # table/state helpers
+    lib/
+      uuid.ts         # id helpers
+    main.ts           # Svelte bootstrap
+    app.css
+  index.html
   vite.config.ts
+  package.json
+  .env.example        # sample (no secrets)
+  .env.local          # local dev (gitignored)
+  .env.production.local  # prod values for local build tests (gitignored)
 
 backend/
   app/
     __init__.py
-    main.py           # MQTT loop, subscribe to orders/new
-    handler.py        # validates Order, simulates prep, publishes food/ready
+    main.py           # MQTT loop; subscribes 'orders/new' and dispatches handler
+    handler.py        # validates Order; simulates prep; publishes 'food/ready'
     models.py         # Pydantic models (Order, FoodReady)
-    logger.py         # Loguru setup
-    mqtt_client.py    # minimal TCP client builder
+    logger.py         # logging setup
+    mqtt_client.py    # asyncio-mqtt client; sets TLS on paho
+    settings.py       # loads .env / .env.hivemq via ENV_FILE
   requirements.txt
   pytest.ini
+  .env.example        # sample (no secrets)
+  .env                # local dev (gitignored)
+  .env.hivemq         # HiveMQ creds (gitignored)
   test/               # pytest suite
 ```
 
 ---
 
-## Configuration
+## Configuration (reference)
 
-Environment variables:
+**Backend envs**
 
-* **Backend**
+* `MQTT_HOST` (default `127.0.0.1`)
+* `MQTT_PORT` (default `1883`)
+* `MQTT_TLS` (`true|false`)
+* `MQTT_USERNAME`, `MQTT_PASSWORD`
+* `MQTT_SUB_TOPIC`, `MQTT_PUB_READY`
 
-    * `MQTT_HOST` (default `127.0.0.1`)
-    * `MQTT_PORT` (default `1883`)
-* **Frontend**
+**Frontend envs (Vite)**
 
-    * `VITE_MQTT_URL` (optional) override, e.g. `wss://your-broker.example.com/mqtt`
-      If unset, it uses `ws://<current-host>:9001`.
-
----
-
-## Security & Input Validation
-
-* **Frontend:** Svelte escapes text by default; we **do not** use `{@html}`. Food name is validated (length & charset) before publish.
-* **Backend:** Pydantic model validation; invalid payloads are dropped and logged.
-* **Dev only:** `allow_anonymous true`. For an internet demo, use a managed MQTT with user/pass + WSS (and reconfigure frontend `VITE_MQTT_URL`).
+* `VITE_MQTT_URL` (e.g., `wss://<cluster-host>:8884/mqtt`)
+* `VITE_MQTT_USERNAME`, `VITE_MQTT_PASSWORD`
 
 ---
 
-## Logging
-
-Backend logs the lifecycle:
-
-* Connect/subscribe messages
-* Inbound `orders/new` (sanitized)
-* Outbound `food/ready`
-* Errors (validation drop, disconnect/retry)
-
----
-
-## Tests
-
-Backend tests (pytest) cover models, handler happy- and error-paths, and client creation.
+## Tests & Coverage
 
 Run:
 
@@ -178,7 +228,13 @@ cd backend
 python -m pytest -q
 ```
 
-**Backend Test Coverage:** 100% of application code (`app/*`).
-(Overall repo coverage lower(98%) due to test helpers.)
+Coverage:
 
----
+```powershell
+python -m coverage run -m pytest
+python -m coverage report -m
+# optional HTML:
+python -m coverage html
+```
+
+(The suite covers core logic; TLS configuration is covered by monkey-patching `paho.Client.tls_set_context`.)
