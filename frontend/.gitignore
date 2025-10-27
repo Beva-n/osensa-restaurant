@@ -24,3 +24,5 @@ dist-ssr
 *.sw?
 
 ../FORME.md
+.env.local
+.env.production.local
