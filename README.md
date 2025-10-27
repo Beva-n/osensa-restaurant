@@ -1,10 +1,10 @@
 # Brian’s Restaurant
 
 **Stack**
-Frontend: Svelte + TypeScript + Vite (browser → MQTT over **WSS :8884**)
-Backend: Python (asyncio) with `asyncio-mqtt` (server → MQTT over **TLS :8883**)
-Broker: HiveMQ Cloud (managed)
-Hosting (frontend): **Netlify**
+* Frontend: Svelte + TypeScript + Vite (browser → MQTT over **WSS :8884**)
+* Backend: Python (asyncio) with `asyncio-mqtt` (server → MQTT over **TLS :8883**)
+* Broker: HiveMQ Cloud (managed)
+* Hosting (frontend): **Netlify**
 
 **Data flow**
 Frontend publishes `orders/new`; backend processes and publishes `food/ready`. No HTTP API.
@@ -22,6 +22,15 @@ Frontend publishes `orders/new`; backend processes and publishes `food/ready`. N
 * When the backend (running separately) receives the order, it simulates a short delay and publishes `food/ready`; the item moves to **Ready** in real time.
 * If the backend is offline, the UI still accepts orders (they stay in **Preparing**).
 
+**Backend runtime**
+
+The backend runs privately on a headless PC (no public HTTP). It only makes an
+outbound TLS MQTT connection to HiveMQ Cloud. The frontend talks
+directly to HiveMQ over WSS, so no server URL is needed.
+
+Live demo behavior:
+- If the backend is online, orders move from “Preparing” → “Ready” in real time.
+- If the backend is offline, the UI still accepts orders; they remain in “Preparing”.
 ---
 
 ## Build & Run (Local)
